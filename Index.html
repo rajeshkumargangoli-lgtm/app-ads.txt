@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>YouTube-style Video Player (Single File)</title>
+  <style>
+    :root{ --bg:#0f1724; --card:#0b1220; --accent:#ff4757; --muted:#9aa4b2; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#071021 0%,#091426 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .app{width:100%;max-width:980px}
+
+    /* Player card */
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.6);}
+
+    /* Video area */
+    .player-wrap{position:relative;border-radius:8px;overflow:hidden;background:#000}
+    video, iframe{width:100%;height:480px;display:block;background:#000}
+
+    /* Controls */
+    .controls{display:flex;gap:12px;align-items:center;padding:10px 6px}
+    .btn{background:transparent;border:0;color:var(--muted);font-size:16px;cursor:pointer;padding:6px 8px;border-radius:6px}
+    .btn:hover{color:var(--accent);transform:translateY(-1px)}
+    .progress{flex:1;display:flex;align-items:center;gap:8px}
+    .progress input[type=range]{width:100%}
+
+    .meta{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+    .title{font-size:18px;font-weight:600}
+    .views{color:var(--muted);font-size:13px}
+
+    /* Responsive */
+    @media (max-width:640px){video,iframe{height:220px}}
+
+    /* simple comment area */
+    .comments{margin-top:14px}
+    .comment-box{display:flex;gap:8px}
+    .comment-box input{flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+    .comment{margin-top:10px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.02)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="player-wrap" id="playerWrap">
+        <!-- Two options: 1) native <video> (local MP4) OR 2) YouTube embed. Replace sources below. -->
+
+        <!-- Option A: native video element (better for local files / hosting yourself) -->
+        <video id="video" preload="metadata" crossorigin="anonymous">
+          <!-- Replace the src with your MP4 file URL (publicly hosted). Example: https://example.com/video.mp4 -->
+          <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+
+        <!-- Option B (comment out Option A to use): YouTube iframe embed (uncomment if you prefer YouTube). -->
+        <!--
+        <iframe id="ytframe" src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0&modestbranding=1" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        -->
+
+      </div>
+
+      <!-- Controls (custom UI) -->
+      <div class="controls" id="controls">
+        <button class="btn" id="playBtn">▶️</button>
+        <button class="btn" id="muteBtn">🔊</button>
+        <div class="progress">
+          <span id="timeCurrent">0:00</span>
+          <input type="range" id="seek" value="0" min="0" step="0.1">
+          <span id="timeTotal">0:00</span>
+        </div>
+        <button class="btn" id="volDown">➖</button>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="1" style="width:90px">
+        <button class="btn" id="ccBtn">CC</button>
+        <button class="btn" id="fsBtn">⛶</button>
+        <button class="btn" id="downloadBtn">⬇️</button>
+      </div>
+
+      <div class="meta">
+        <div>
+          <div class="title">Sample video — replace with your file</div>
+          <div class="views">12,345 views • Jan 1, 2024</div>
+        </div>
+        <div>
+          <button class="btn" id="likeBtn">👍 1.2k</button>
+        </div>
+      </div>
+
+      <!-- Comments (very simple) -->
+      <div class="comments">
+        <div class="comment-box">
+          <input id="commentInput" placeholder="Add a public comment...">
+          <button class="btn" id="postComment">Post</button>
+        </div>
+        <div id="commentsList"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Basic custom player JS
+    const video = document.getElementById('video');
+    const playBtn = document.getElementById('playBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const seek = document.getElementById('seek');
+    const timeCurrent = document.getElementById('timeCurrent');
+    const timeTotal = document.getElementById('timeTotal');
+    const volume = document.getElementById('volume');
+    const volDown = document.getElementById('volDown');
+    const fsBtn = document.getElementById('fsBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const ccBtn = document.getElementById('ccBtn');
+
+    // Small helper to format time
+    function fmt(s){
+      if(isNaN(s)) return '0:00';
+      const m = Math.floor(s/60); const sec = Math.floor(s%60).toString().padStart(2,'0');
+      return `${m}:${sec}`
+    }
+
+    // When metadata loaded set duration
+    video.addEventListener('loadedmetadata', ()=>{
+      seek.max = video.duration;
+      timeTotal.textContent = fmt(video.duration);
+    });
+
+    // Time update
+    video.addEventListener('timeupdate', ()=>{
+      seek.value = video.currentTime;
+      timeCurrent.textContent = fmt(video.currentTime);
+    });
+
+    // Play / Pause
+    playBtn.addEventListener('click', ()=>{
+      if(video.paused){ video.play(); playBtn.textContent = '⏸️' }
+      else { video.pause(); playBtn.textContent = '▶️' }
+    });
+
+    // Seek
+    let seeking = false;
+    seek.addEventListener('input', ()=>{ seeking=true; timeCurrent.textContent = fmt(seek.value) });
+    seek.addEventListener('change', ()=>{ video.currentTime = seek.value; seeking=false });
+
+    // Volume
+    volume.addEventListener('input', ()=>{ video.volume = volume.value; muteBtn.textContent = video.volume==0 ? '🔈' : '🔊' });
+    volDown.addEventListener('click', ()=>{ video.volume = Math.max(0, video.volume - 0.1); volume.value = video.volume });
+    muteBtn.addEventListener('click', ()=>{ video.muted = !video.muted; muteBtn.textContent = video.muted ? '🔈' : '🔊' });
+
+    // Fullscreen
+    fsBtn.addEventListener('click', async ()=>{
+      const wrap = document.getElementById('playerWrap');
+      if(!document.fullscreenElement){ await wrap.requestFullscreen().catch(()=>{}); }
+      else { document.exitFullscreen().catch(()=>{}); }
+    });
+
+    // Download button
+    downloadBtn.addEventListener('click', ()=>{
+      const src = video.querySelector('source')?.src || video.src;
+      if(!src){ alert('No downloadable source found (YouTube embeds cannot be downloaded).'); return }
+      const a = document.createElement('a'); a.href = src; a.download = '';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+
+    // Simple CC toggle (if track element exists)
+    ccBtn.addEventListener('click', ()=>{
+      for(const t of video.textTracks){ t.mode = t.mode === 'showing' ? 'hidden' : 'showing' }
+    });
+
+    // Comments (local only) - keeps them in-memory for demo
+    const commentInput = document.getElementById('commentInput');
+    const postComment = document.getElementById('postComment');
+    const commentsList = document.getElementById('commentsList');
+    postComment.addEventListener('click', ()=>{
+      const txt = commentInput.value.trim(); if(!txt) return;
+      const d = document.createElement('div'); d.className='comment'; d.textContent = txt; commentsList.prepend(d); commentInput.value='';
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown',(e)=>{
+      if(e.code === 'Space' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); playBtn.click(); }
+      if(e.key === 'f') fsBtn.click();
+      if(e.key === 'm') muteBtn.click();
+      if(e.key === 'ArrowRight') video.currentTime = Math.min(video.duration, video.currentTime + 5);
+      if(e.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 5);
+    });
+
+    // Mobile: tap the video to toggle controls (simple behavior)
+    video.addEventListener('click', ()=>{ playBtn.click(); });
+
+    // If you want to use a YouTube iframe instead of <video>:
+    // - Comment out the <video> element and uncomment the iframe in the HTML above.
+    // - YouTube iframe won't support custom range seeking or direct download. For rich integration, use YouTube IFrame API.
+
+    // Replace sample video source with your hosted MP4 or direct link to use this as the final player.
+  </script>
+</body>
+</html>
